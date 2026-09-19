@@ -1,0 +1,42 @@
+name: Build Expo IPA
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: corepack enable && pnpm install --frozen-lockfile
+      - run: npx expo prebuild --platform ios --clean --no-install
+        env:
+          CI: "1"
+      - run: npx pod-install
+        working-directory: ios
+      - run: |
+          xcodebuild -workspace Solve9.xcworkspace \
+            -scheme Solve9 \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+        working-directory: ios
+      - run: |
+          cd build/Build/Products/Release-iphoneos
+          test -d Solve9.app || { echo "ERROR: Solve9.app was not built"; exit 1; }
+          mkdir -p Payload
+          cp -r Solve9.app Payload/
+          rm -f Solve9.ipa
+          zip -r Solve9.ipa Payload -x "*.DS_Store"
+          unzip -l Solve9.ipa | grep -q "Payload/Solve9.app/" || { echo "ERROR: .ipa is missing Payload/Solve9.app"; exit 1; }
+        working-directory: ios
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Solve9.ipa
+          path: ios/build/Build/Products/Release-iphoneos/Solve9.ipa
