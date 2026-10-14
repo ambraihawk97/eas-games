@@ -50,3 +50,6 @@ yarn-error.*
 
 # typescript
 *.tsbuildinfo
+
+# local build outputs
+artifacts/

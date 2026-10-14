@@ -109,12 +109,7 @@ const Grid = () => {
         );
     };
 
-    const isSameNumber = (r: number, c: number) => {
-        if (!selected) return false;
-        const sv = board?.[selected.row][selected.col] ?? null;
-        const cv = board?.[r][c] ?? null;
-        return sv !== null && sv === cv;
-    };
+    const isSameNumber = (_r: number, _c: number) => false;
 
     const isError = (r: number, c: number) => {
         const cv = board?.[r][c];
