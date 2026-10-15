@@ -44,6 +44,12 @@
 .PARAMETER ArtifactName
     GitHub Actions artifact name. Defaults to "Solve9.ipa".
 
+.PARAMETER NoDeploy
+    Skip the deploy step. By default the script opens Sideloadly with the
+    fresh .ipa preloaded (and registers a user-level .ipa file association,
+    so double-click also works). Sideloadly has no CLI, so you still click
+    Start once in its window.
+
 .EXAMPLE
     .\build-ipa.ps1
 
@@ -59,7 +65,8 @@ param(
     [string]$OutDir = "",
     [int]$PollIntervalSec = 20,
     [int]$TimeoutMin = 90,
-    [string]$ArtifactName = "Solve9.ipa"
+    [string]$ArtifactName = "Solve9.ipa",
+    [switch]$NoDeploy
 )
 
 $ErrorActionPreference = "Stop"
@@ -304,4 +311,45 @@ try {
     Write-Host "Sideload with Sideloadly using this .ipa" -ForegroundColor Green
 } finally {
     Remove-Item -Recurse -Force $tmpDir -ErrorAction SilentlyContinue
+}
+
+if (-not $NoDeploy) {
+    Write-Step "Deploy: opening Sideloadly with $finalPath"
+
+    $sideloadly = Join-Path $env:LOCALAPPDATA "Sideloadly\sideloadly.exe"
+    if (-not (Test-Path -LiteralPath $sideloadly)) {
+        throw "Sideloadly not found at $sideloadly - install it first or pass -NoDeploy."
+    }
+
+    $existing = @(Get-Process -Name "sideloadly" -ErrorAction SilentlyContinue)
+    if ($existing.Count -gt 0) {
+        Write-Host "Closing running Sideloadly ($($existing.Count) window process) so the new ipa loads (daemon left running)..."
+        $existing | ForEach-Object { $null = $_.CloseMainWindow() }
+        Start-Sleep -Seconds 2
+        Get-Process -Name "sideloadly" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+        Start-Sleep -Seconds 1
+    }
+
+    $progId = "Sideloadly.IPA"
+    try {
+        $extKey = "HKCU:\Software\Classes\.ipa"
+        $progKey = "HKCU:\Software\Classes\$progId"
+        $cmdKey = "HKCU:\Software\Classes\$progId\shell\open\command"
+        New-Item -Path $extKey -Force | Out-Null
+        Set-ItemProperty -Path $extKey -Name "(default)" -Value $progId
+        New-Item -Path $progKey -Force | Out-Null
+        Set-ItemProperty -Path $progKey -Name "(default)" -Value "Sideloadly IPA Package"
+        New-Item -Path $cmdKey -Force | Out-Null
+        Set-ItemProperty -Path $cmdKey -Name "(default)" -Value ('"{0}" "%1"' -f $sideloadly)
+        Write-Host "Registered user-level .ipa -> Sideloadly association (double-click works too)."
+    } catch {
+        Write-Host "Could not register .ipa association: $($_.Exception.Message)"
+    }
+
+    Start-Process -FilePath $sideloadly -ArgumentList ('"{0}"' -f $finalPath)
+    Write-Host ""
+    Write-Host "Sideloadly launched with the ipa path passed in." -ForegroundColor Yellow
+    Write-Host "  1. Confirm the IPA field shows Solve9.ipa (if empty, drag it from: $OutDir)" -ForegroundColor Yellow
+    Write-Host "  2. Device + Apple ID are remembered - click Start." -ForegroundColor Yellow
+    Write-Host "Note: Sideloadly has no CLI, so this final click is unavoidable with it." -ForegroundColor Yellow
 }

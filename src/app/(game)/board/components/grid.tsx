@@ -162,6 +162,7 @@ const Grid = () => {
         (digit: number) => {
             if (!selected) return;
             handleInput(selected.row, selected.col, digit);
+            setSelected(null);
         },
         [selected, handleInput]
     );

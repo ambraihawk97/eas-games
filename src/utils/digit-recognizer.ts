@@ -265,13 +265,13 @@ function strokesToGrid(strokes: Stroke[]): Float32Array {
     if (stroke.length === 0) continue;
     if (stroke.length === 1) {
       const p = map(stroke[0]);
-      paintLine(grid, p.x, p.y, p.x, p.y, 1);
+      paintLine(grid, p.x, p.y, p.x, p.y, 2);
       continue;
     }
     for (let i = 1; i < stroke.length; i++) {
       const a = map(stroke[i - 1]);
       const b = map(stroke[i]);
-      paintLine(grid, a.x, a.y, b.x, b.y, 1);
+      paintLine(grid, a.x, a.y, b.x, b.y, 2);
     }
   }
   return grid;
@@ -303,7 +303,7 @@ function aspectFeatures(strokes: Stroke[]) {
  */
 export function recognizeDigit(
   strokes: Stroke[],
-  minConfidence = 0.42
+  minConfidence = 0.28
 ): { digit: number; confidence: number } | null {
   if (!strokes.length || totalPoints(strokes) < MIN_POINTS) return null;
   if (totalPathLength(strokes) < MIN_PATH_LENGTH) return null;
@@ -320,11 +320,11 @@ export function recognizeDigit(
     let score = correlation(grid, template);
 
     // Light geometric priors for common ambiguities.
-    if (digit === 1 && aspect > 1.6 && strokeCount <= 2) score += 0.08;
-    if (digit === 4 && strokeCount >= 2) score += 0.05;
-    if (digit === 7 && aspect > 1.1) score += 0.03;
-    if ((digit === 8 || digit === 0) && aspect < 0.85) score -= 0.04;
-    if (digit === 5 && strokeCount >= 2) score += 0.03;
+    if (digit === 1 && aspect > 1.45 && strokeCount <= 2) score += 0.1;
+    if (digit === 4 && strokeCount >= 2) score += 0.06;
+    if (digit === 7 && aspect > 1.05) score += 0.04;
+    if (digit === 5 && strokeCount >= 2) score += 0.04;
+    if (digit === 9 && strokeCount === 1 && aspect > 1.2) score += 0.03;
 
     if (score > bestScore) {
       secondScore = bestScore;
@@ -337,8 +337,8 @@ export function recognizeDigit(
 
   if (bestDigit < 1 || bestDigit > 9) return null;
   if (bestScore < minConfidence) return null;
-  // Reject near-ties unless the winner is clearly ahead.
-  if (bestScore - secondScore < 0.035 && bestScore < 0.62) return null;
+  // Only reject near-ties when both scores are weak.
+  if (bestScore - secondScore < 0.02 && bestScore < 0.45) return null;
 
   return { digit: bestDigit, confidence: bestScore };
 }

@@ -1,10 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   View,
   StyleSheet,
   PanResponder,
   type GestureResponderEvent,
-  type PanResponderGestureState,
   Pressable,
 } from "react-native";
 import { Text } from "@/components/ui/text";
@@ -18,12 +17,71 @@ type Props = {
   onDismiss?: () => void;
 };
 
-const RECOGNIZE_DELAY_MS = 480;
-const INK_RADIUS = 2.2;
+const RECOGNIZE_DELAY_MS = 650;
+const STROKE_WIDTH = 4.5;
 
 function eventPoint(e: GestureResponderEvent): Point {
   const { locationX, locationY } = e.nativeEvent;
   return { x: locationX, y: locationY };
+}
+
+function strokeToSegments(stroke: Stroke, color: string, keyPrefix: string) {
+  const segments: ReactNode[] = [];
+  // Skip points for smoother, cheaper line rendering while still looking continuous.
+  const step = Math.max(1, Math.floor(stroke.length / 80));
+  for (let i = step; i < stroke.length; i += step) {
+    const a = stroke[i - step];
+    const b = stroke[i];
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const length = Math.hypot(dx, dy);
+    if (length < 0.8) continue;
+    const angle = Math.atan2(dy, dx);
+    const midX = (a.x + b.x) / 2;
+    const midY = (a.y + b.y) / 2;
+    segments.push(
+      <View
+        key={`${keyPrefix}-${i}`}
+        pointerEvents="none"
+        style={{
+          position: "absolute",
+          left: midX - length / 2,
+          top: midY - STROKE_WIDTH / 2,
+          width: length,
+          height: STROKE_WIDTH,
+          borderRadius: STROKE_WIDTH / 2,
+          backgroundColor: color,
+          transform: [{ rotate: `${angle}rad` }],
+        }}
+      />
+    );
+  }
+  // Round caps at endpoints
+  if (stroke.length > 0) {
+    const first = stroke[0];
+    const last = stroke[stroke.length - 1];
+    for (const [tag, p] of [
+      ["s", first],
+      ["e", last],
+    ] as const) {
+      segments.push(
+        <View
+          key={`${keyPrefix}-${tag}`}
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            left: p.x - STROKE_WIDTH / 2,
+            top: p.y - STROKE_WIDTH / 2,
+            width: STROKE_WIDTH,
+            height: STROKE_WIDTH,
+            borderRadius: STROKE_WIDTH / 2,
+            backgroundColor: color,
+          }}
+        />
+      );
+    }
+  }
+  return segments;
 }
 
 export default function DigitWriteOverlay({
@@ -35,9 +93,11 @@ export default function DigitWriteOverlay({
   const colors = useThemeColors();
   const [strokes, setStrokes] = useState<Stroke[]>([]);
   const [liveStroke, setLiveStroke] = useState<Stroke>([]);
+  const [status, setStatus] = useState<string>("Write 1–9");
   const strokesRef = useRef<Stroke[]>([]);
-  const liveRef = useRef<Stroke>([]);
+  const liveRef = useRef<Stroke[]>([]);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const frameRef = useRef<number | null>(null);
   const recognizingRef = useRef(false);
 
   useEffect(() => {
@@ -47,6 +107,7 @@ export default function DigitWriteOverlay({
   useEffect(() => {
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
+      if (frameRef.current != null) cancelAnimationFrame(frameRef.current);
     };
   }, []);
 
@@ -56,6 +117,7 @@ export default function DigitWriteOverlay({
     liveRef.current = [];
     setStrokes([]);
     setLiveStroke([]);
+    setStatus("Write 1–9");
   }, []);
 
   const scheduleRecognize = useCallback(() => {
@@ -63,7 +125,14 @@ export default function DigitWriteOverlay({
     timerRef.current = setTimeout(() => {
       if (recognizingRef.current) return;
       const result = recognizeDigit(strokesRef.current);
-      if (!result) return;
+      if (!result) {
+        strokesRef.current = [];
+        liveRef.current = [];
+        setStrokes([]);
+        setLiveStroke([]);
+        setStatus("Couldn't read — try again");
+        return;
+      }
       recognizingRef.current = true;
       onRecognized(result.digit);
       strokesRef.current = [];
@@ -73,6 +142,14 @@ export default function DigitWriteOverlay({
       recognizingRef.current = false;
     }, RECOGNIZE_DELAY_MS);
   }, [onRecognized]);
+
+  const queueLiveRender = useCallback(() => {
+    if (frameRef.current != null) return;
+    frameRef.current = requestAnimationFrame(() => {
+      frameRef.current = null;
+      setLiveStroke([...liveRef.current]);
+    });
+  }, []);
 
   const panResponder = useMemo(
     () =>
@@ -84,15 +161,18 @@ export default function DigitWriteOverlay({
         onPanResponderTerminationRequest: () => false,
         onPanResponderGrant: (e) => {
           if (timerRef.current) clearTimeout(timerRef.current);
+          setStatus("Write 1–9");
           const p = eventPoint(e);
           liveRef.current = [p];
           setLiveStroke([p]);
         },
-        onPanResponderMove: (e: GestureResponderEvent, _g: PanResponderGestureState) => {
+        onPanResponderMove: (e: GestureResponderEvent) => {
           const p = eventPoint(e);
-          const next = [...liveRef.current, p];
-          liveRef.current = next;
-          setLiveStroke(next);
+          const prev = liveRef.current[liveRef.current.length - 1];
+          // Ignore microscopic jitter from Apple Pencil sampling.
+          if (prev && Math.hypot(p.x - prev.x, p.y - prev.y) < 0.6) return;
+          liveRef.current = [...liveRef.current, p];
+          queueLiveRender();
         },
         onPanResponderRelease: () => {
           const finished = liveRef.current;
@@ -117,22 +197,13 @@ export default function DigitWriteOverlay({
           }
         },
       }),
-    [scheduleRecognize]
+    [queueLiveRender, scheduleRecognize]
   );
 
-  const inkDots = useMemo(() => {
+  const ink = useMemo(() => {
     const all = liveStroke.length ? [...strokes, liveStroke] : strokes;
-    const dots: { key: string; x: number; y: number }[] = [];
-    all.forEach((stroke, si) => {
-      // Downsample for performance while keeping the glyph readable.
-      const step = Math.max(1, Math.floor(stroke.length / 48));
-      for (let i = 0; i < stroke.length; i += step) {
-        const p = stroke[i];
-        dots.push({ key: `${si}-${i}`, x: p.x, y: p.y });
-      }
-    });
-    return dots;
-  }, [strokes, liveStroke]);
+    return all.flatMap((stroke, si) => strokeToSegments(stroke, strokeColor, `s${si}`));
+  }, [strokes, liveStroke, strokeColor]);
 
   return (
     <View
@@ -147,22 +218,9 @@ export default function DigitWriteOverlay({
         },
       ]}
     >
-      <Text style={[styles.hint, { color: colors.muted }]}>Write 1–9</Text>
+      <Text style={[styles.hint, { color: colors.muted }]}>{status}</Text>
       <View style={styles.canvas} {...panResponder.panHandlers}>
-        {inkDots.map((d) => (
-          <View
-            key={d.key}
-            pointerEvents="none"
-            style={[
-              styles.ink,
-              {
-                left: d.x - INK_RADIUS,
-                top: d.y - INK_RADIUS,
-                backgroundColor: strokeColor,
-              },
-            ]}
-          />
-        ))}
+        {ink}
       </View>
       <View style={styles.actions}>
         <Pressable onPress={clearInk} hitSlop={8} accessibilityLabel="Clear writing">
@@ -199,12 +257,6 @@ const styles = StyleSheet.create({
   },
   canvas: {
     flex: 1,
-  },
-  ink: {
-    position: "absolute",
-    width: INK_RADIUS * 2,
-    height: INK_RADIUS * 2,
-    borderRadius: INK_RADIUS,
   },
   actions: {
     position: "absolute",
