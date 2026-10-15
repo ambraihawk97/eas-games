@@ -8,7 +8,12 @@ import {
 } from "react-native";
 import { Text } from "@/components/ui/text";
 import { useThemeColors } from "@/utils/useThemeColors";
-import { recognizeDigit, type Point, type Stroke } from "@/utils/digit-recognizer";
+import {
+  recognizeDigit,
+  topDigitCandidates,
+  type Point,
+  type Stroke,
+} from "@/utils/digit-recognizer";
 
 type Props = {
   size: number;
@@ -17,7 +22,7 @@ type Props = {
   onDismiss?: () => void;
 };
 
-const RECOGNIZE_DELAY_MS = 650;
+const RECOGNIZE_DELAY_MS = 700;
 const STROKE_WIDTH = 4.5;
 
 function eventPoint(e: GestureResponderEvent): Point {
@@ -27,7 +32,6 @@ function eventPoint(e: GestureResponderEvent): Point {
 
 function strokeToSegments(stroke: Stroke, color: string, keyPrefix: string) {
   const segments: ReactNode[] = [];
-  // Skip points for smoother, cheaper line rendering while still looking continuous.
   const step = Math.max(1, Math.floor(stroke.length / 80));
   for (let i = step; i < stroke.length; i += step) {
     const a = stroke[i - step];
@@ -56,7 +60,6 @@ function strokeToSegments(stroke: Stroke, color: string, keyPrefix: string) {
       />
     );
   }
-  // Round caps at endpoints
   if (stroke.length > 0) {
     const first = stroke[0];
     const last = stroke[stroke.length - 1];
@@ -94,6 +97,7 @@ export default function DigitWriteOverlay({
   const [strokes, setStrokes] = useState<Stroke[]>([]);
   const [liveStroke, setLiveStroke] = useState<Stroke>([]);
   const [status, setStatus] = useState<string>("Write 1–9");
+  const [candidates, setCandidates] = useState<number[]>([]);
   const strokesRef = useRef<Stroke[]>([]);
   const liveRef = useRef<Stroke[]>([]);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -117,31 +121,40 @@ export default function DigitWriteOverlay({
     liveRef.current = [];
     setStrokes([]);
     setLiveStroke([]);
+    setCandidates([]);
     setStatus("Write 1–9");
   }, []);
+
+  const acceptDigit = useCallback(
+    (digit: number) => {
+      recognizingRef.current = true;
+      onRecognized(digit);
+      strokesRef.current = [];
+      liveRef.current = [];
+      setStrokes([]);
+      setLiveStroke([]);
+      setCandidates([]);
+      recognizingRef.current = false;
+    },
+    [onRecognized]
+  );
 
   const scheduleRecognize = useCallback(() => {
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => {
       if (recognizingRef.current) return;
-      const result = recognizeDigit(strokesRef.current);
-      if (!result) {
-        strokesRef.current = [];
-        liveRef.current = [];
-        setStrokes([]);
-        setLiveStroke([]);
-        setStatus("Couldn't read — try again");
+      const ink = strokesRef.current;
+      const result = recognizeDigit(ink);
+      if (result) {
+        acceptDigit(result.digit);
         return;
       }
-      recognizingRef.current = true;
-      onRecognized(result.digit);
-      strokesRef.current = [];
-      liveRef.current = [];
-      setStrokes([]);
-      setLiveStroke([]);
-      recognizingRef.current = false;
+
+      const ranked = topDigitCandidates(ink, 3).map((g) => g.digit);
+      setCandidates(ranked.length ? ranked : [1, 2, 3, 4, 5, 6, 7, 8, 9]);
+      setStatus(ranked.length ? "Tap the number you meant" : "Tap a number");
     }, RECOGNIZE_DELAY_MS);
-  }, [onRecognized]);
+  }, [acceptDigit]);
 
   const queueLiveRender = useCallback(() => {
     if (frameRef.current != null) return;
@@ -154,13 +167,14 @@ export default function DigitWriteOverlay({
   const panResponder = useMemo(
     () =>
       PanResponder.create({
-        onStartShouldSetPanResponder: () => true,
-        onMoveShouldSetPanResponder: () => true,
-        onStartShouldSetPanResponderCapture: () => true,
-        onMoveShouldSetPanResponderCapture: () => true,
+        onStartShouldSetPanResponder: () => candidates.length === 0,
+        onMoveShouldSetPanResponder: () => candidates.length === 0,
+        onStartShouldSetPanResponderCapture: () => candidates.length === 0,
+        onMoveShouldSetPanResponderCapture: () => candidates.length === 0,
         onPanResponderTerminationRequest: () => false,
         onPanResponderGrant: (e) => {
           if (timerRef.current) clearTimeout(timerRef.current);
+          setCandidates([]);
           setStatus("Write 1–9");
           const p = eventPoint(e);
           liveRef.current = [p];
@@ -169,7 +183,6 @@ export default function DigitWriteOverlay({
         onPanResponderMove: (e: GestureResponderEvent) => {
           const p = eventPoint(e);
           const prev = liveRef.current[liveRef.current.length - 1];
-          // Ignore microscopic jitter from Apple Pencil sampling.
           if (prev && Math.hypot(p.x - prev.x, p.y - prev.y) < 0.6) return;
           liveRef.current = [...liveRef.current, p];
           queueLiveRender();
@@ -197,7 +210,7 @@ export default function DigitWriteOverlay({
           }
         },
       }),
-    [queueLiveRender, scheduleRecognize]
+    [candidates.length, queueLiveRender, scheduleRecognize]
   );
 
   const ink = useMemo(() => {
@@ -221,6 +234,41 @@ export default function DigitWriteOverlay({
       <Text style={[styles.hint, { color: colors.muted }]}>{status}</Text>
       <View style={styles.canvas} {...panResponder.panHandlers}>
         {ink}
+        {candidates.length > 0 ? (
+          <View style={styles.candidateWrap} pointerEvents="box-none">
+            <View style={styles.candidateRow}>
+              {candidates.map((digit) => (
+                <Pressable
+                  key={digit}
+                  onPress={() => acceptDigit(digit)}
+                  style={[
+                    styles.candidateBtn,
+                    { backgroundColor: colors.primary, borderColor: colors.border },
+                  ]}
+                  accessibilityLabel={`Choose ${digit}`}
+                >
+                  <Text style={[styles.candidateText, { color: colors.background }]}>{digit}</Text>
+                </Pressable>
+              ))}
+            </View>
+            <View style={styles.candidateRow}>
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9]
+                .filter((d) => !candidates.includes(d))
+                .map((digit) => (
+                  <Pressable
+                    key={`all-${digit}`}
+                    onPress={() => acceptDigit(digit)}
+                    style={[styles.candidateBtnSmall, { borderColor: colors.border }]}
+                    accessibilityLabel={`Choose ${digit}`}
+                  >
+                    <Text style={[styles.candidateTextSmall, { color: colors.foreground }]}>
+                      {digit}
+                    </Text>
+                  </Pressable>
+                ))}
+            </View>
+          </View>
+        ) : null}
       </View>
       <View style={styles.actions}>
         <Pressable onPress={clearInk} hitSlop={8} accessibilityLabel="Clear writing">
@@ -257,6 +305,46 @@ const styles = StyleSheet.create({
   },
   canvas: {
     flex: 1,
+  },
+  candidateWrap: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.18)",
+    gap: 10,
+    paddingHorizontal: 8,
+    zIndex: 5,
+  },
+  candidateRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    gap: 8,
+  },
+  candidateBtn: {
+    minWidth: 48,
+    height: 48,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 14,
+  },
+  candidateText: {
+    fontSize: 22,
+    fontWeight: "700",
+  },
+  candidateBtnSmall: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.85)",
+  },
+  candidateTextSmall: {
+    fontSize: 14,
+    fontWeight: "600",
   },
   actions: {
     position: "absolute",

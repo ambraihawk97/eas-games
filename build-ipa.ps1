@@ -257,7 +257,7 @@ do {
     $runs = Invoke-RestMethod -Headers $headers -Uri "$apiBase/actions/runs?head_sha=$sha&per_page=5"
     $run = $runs.workflow_runs | Where-Object { $_.head_sha -eq $sha } | Select-Object -First 1
     if ($run) {
-        Write-Host ("CI status: {0} ({1})" -f $run.status, $run.createdAt)
+        Write-Host ("CI status: {0} ({1})" -f $run.status, $run.created_at)
         if ($run.status -ne "queued" -and $run.status -ne "in_progress") { break }
     } else {
         Write-Host "Run not found yet..."
