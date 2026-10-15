@@ -44,17 +44,13 @@ const TimeSection = memo(() => {
 type Props = {}
 
 const InfoBar = (props: Props) => {
-    const { level, mistakes } = useMenuStore();
+    const { level } = useMenuStore();
 
     return (
         <View className="w-full flex-row justify-between">
             <View className="flex-1 gap-0">
                 <Text className="text-foreground text-lg leading-tight">Difficulty</Text>
                 <Text className="text-foreground text-xl font-medium leading-tight capitalize">{level || 'Medium'}</Text>
-            </View>
-            <View className="flex-1 gap-0 flex-col items-center">
-                <Text className="text-foreground text-lg leading-tight">Mistake</Text>
-                <Text className="text-foreground text-xl font-medium leading-tight">{mistakes}/3</Text>
             </View>
             <TimeSection />
         </View>

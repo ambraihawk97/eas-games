@@ -83,16 +83,6 @@ function HistoryItem({ item, onPress }: HistoryItemProps) {
                 <View className="w-px h-12 bg-border" />
 
                 <View className="items-center">
-                    <FontAwesome5 name="exclamation-triangle" size={14} color="#6B7280" />
-                    <Text className="text-xs text-muted mt-1">Mistakes</Text>
-                    <Text className="text-sm font-bold text-foreground mt-0.5">
-                        {item.mistakes}/3
-                    </Text>
-                </View>
-
-                <View className="w-px h-12 bg-border" />
-
-                <View className="items-center">
                     <FontAwesome5 name="history" size={14} color="#6B7280" />
                     <Text className="text-xs text-muted mt-1">History</Text>
                     <Text className="text-sm font-bold text-foreground mt-0.5">

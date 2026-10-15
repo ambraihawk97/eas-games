@@ -11,7 +11,7 @@ import { useThemeColors } from "@/utils/useThemeColors";
 const GRID_SIZE = 9;
 const BOX_SIZE = 3;
 const MAX_PER_NUMBER = 9;
-const WRITE_OVERLAY_SCALE = 2.75;
+const WRITE_OVERLAY_SCALE = 4.5;
 const GRID_BORDER = 2;
 
 const Grid = () => {
@@ -26,7 +26,7 @@ const Grid = () => {
     const gridSize = Math.min(screenWidth - 32, 380);
     const cellSize = Math.floor(gridSize / GRID_SIZE);
     const actualGridSize = cellSize * GRID_SIZE;
-    const overlaySize = Math.max(112, Math.round(cellSize * WRITE_OVERLAY_SCALE));
+    const overlaySize = Math.max(180, Math.round(cellSize * WRITE_OVERLAY_SCALE));
 
     /* -------------------- STATE -------------------- */
     const [selected, setSelected] = useState<{ row: number; col: number } | null>(null);

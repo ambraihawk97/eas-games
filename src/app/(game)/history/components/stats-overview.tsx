@@ -32,8 +32,6 @@ function StatsOverview({ gameHistory }: StatsOverviewProps) {
   const totalMoves = gameHistory.reduce((sum, g) => sum + g.moves, 0);
   const avgMoves = Math.round(totalMoves / totalGames);
 
-  const perfectGames = gameHistory.filter((g) => g.isWin && g.mistakes === 0).length;
-
   return (
     <View className="bg-surface rounded-xl p-4 mb-4 border border-border">
       <Text className="text-lg font-bold text-foreground mb-3">
@@ -65,12 +63,6 @@ function StatsOverview({ gameHistory }: StatsOverviewProps) {
           {/* <FontAwesome5 name="hand-pointer" size={20} color="#8B5CF6" /> */}
           <Text className="text-xs text-muted mt-2">Avg Moves</Text>
           <Text className="text-2xl font-bold text-foreground mt-1">{avgMoves}</Text>
-        </View>
-        
-        <View className="flex-1 min-w-[45%] bg-background rounded-lg p-3 items-center">
-          {/* <FontAwesome5 name="star" size={20} color="#EAB308" /> */}
-          <Text className="text-xs text-muted mt-2">Perfect Games</Text>
-          <Text className="text-2xl font-bold text-foreground mt-1">{perfectGames}</Text>
         </View>
         
         <View className="flex-1 min-w-[45%] bg-background rounded-lg p-3 items-center">

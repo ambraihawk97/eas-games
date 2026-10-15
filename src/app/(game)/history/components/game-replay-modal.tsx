@@ -172,18 +172,6 @@ function GameReplayModal({ visible, game, onClose }: GameReplayModalProps) {
                             <Text className="text-xs text-muted">Moves</Text>
                             <Text className="text-sm font-bold text-foreground mt-1">{game.moves}</Text>
                         </View>
-                        <View className="w-px bg-border" />
-                        <View className="items-center">
-                            <Text className="text-xs text-muted">Mistakes</Text>
-                            <Text className="text-sm font-bold text-foreground mt-1">{game.mistakes}/3</Text>
-                        </View>
-                        <View className="w-px bg-border" />
-                        <View className="items-center">
-                            <Text className="text-xs text-muted">Accuracy</Text>
-                            <Text className="text-sm font-bold text-foreground mt-1">
-                                {game.moves > 0 ? Math.round(((game.moves - game.mistakes) / game.moves) * 100) : 0}%
-                            </Text>
-                        </View>
                     </View>
                 </View>
 

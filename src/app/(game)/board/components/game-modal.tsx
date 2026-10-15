@@ -13,7 +13,7 @@ type Props = {
 };
 
 const GameModal = ({ visible, isWin, onClose }: Props) => {
-    const { timeElapsed, moves, mistakes, startNewGame, level, saveGameToHistory } = useMenuStore();
+    const { timeElapsed, moves, startNewGame, level, saveGameToHistory } = useMenuStore();
 
     useEffect(() => {
         if (visible) {
@@ -52,7 +52,7 @@ const GameModal = ({ visible, isWin, onClose }: Props) => {
                         <Text className="text-lg text-muted mt-2 text-center">
                             {isWin
                                 ? "You completed the puzzle!"
-                                : "Too many mistakes. Better luck next time!"}
+                                : "Better luck next time!"}
                         </Text>
                     </View>
 
@@ -73,20 +73,12 @@ const GameModal = ({ visible, isWin, onClose }: Props) => {
                                 {formateElapsedTime(timeElapsed)}
                             </Text>
                         </View>
-                        <View className="flex-row justify-between mb-3">
+                        <View className="flex-row justify-between">
                             <Text className="text-muted">
                                 Moves
                             </Text>
                             <Text className="text-foreground font-semibold">
                                 {moves}
-                            </Text>
-                        </View>
-                        <View className="flex-row justify-between">
-                            <Text className="text-muted">
-                                Mistakes
-                            </Text>
-                            <Text className="text-foreground font-semibold">
-                                {mistakes}/3
                             </Text>
                         </View>
                     </View>

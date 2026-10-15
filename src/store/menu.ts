@@ -168,7 +168,7 @@ export const useMenuStore = create<GameStore>((set, get) => ({
   },
 
   handleInput: (row, col, value) => {
-    const { board, solution, fixed, isPencilMode, notes, mistakes, isPaused, isGameOver } = get();
+    const { board, solution, fixed, isPencilMode, notes, isPaused, isGameOver } = get();
     if (!board || !solution || !notes || row < 0 || col < 0 || isPaused || isGameOver) return;
     if (fixed?.[row][col] !== null) return;
     // Lock: prevent changing a correctly entered number
@@ -215,21 +215,6 @@ export const useMenuStore = create<GameStore>((set, get) => ({
     const newNotes = notes.map((r) => r.map((c) => new Set(c)));
     newNotes[row][col].clear();
 
-    // Check if the value is correct
-    let newMistakes = mistakes;
-    if (value !== null && value !== solution[row][col]) {
-      newMistakes++;
-      if (newMistakes >= 3) {
-        set({
-          board: newBoard,
-          notes: newNotes,
-          mistakes: newMistakes,
-          isGameOver: true,
-        });
-        return;
-      }
-    }
-
     const history = get().history;
     history.push({ row, col, oldValue, newValue: value });
 
@@ -237,7 +222,6 @@ export const useMenuStore = create<GameStore>((set, get) => ({
       board: newBoard,
       notes: newNotes,
       moves: get().moves + 1,
-      mistakes: newMistakes,
       history,
     });
 
@@ -572,16 +556,16 @@ export const useMenuStore = create<GameStore>((set, get) => ({
   },
 
   canAutoComplete: () => {
-    const { board, solution, mistakes } = get();
-    if (!board || !solution || mistakes > 0) return false;
+    const { board, solution } = get();
+    if (!board || !solution) return false;
 
-    // Check if there are any mistakes on the board
+    // Check if there are any incorrect values on the board
     for (let r = 0; r < 9; r++) {
       for (let c = 0; c < 9; c++) {
         const cellValue = board[r][c];
         const correctValue = solution[r][c];
         if (cellValue !== null && cellValue !== correctValue) {
-          return false; // Has mistakes, can't auto-complete
+          return false;
         }
       }
     }

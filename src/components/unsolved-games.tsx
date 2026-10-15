@@ -78,12 +78,6 @@ function UnsolvedGames() {
                                             {game.moves}
                                         </Text>
                                     </View>
-                                    <View className="flex-row items-center">
-                                        <FontAwesome5 name="times-circle" size={9} color="#EF4444" />
-                                        <Text className="ml-1 text-xs text-red-500 font-semibold">
-                                            {game.mistakes}/3
-                                        </Text>
-                                    </View>
                                 </View>
                             </View>
 
