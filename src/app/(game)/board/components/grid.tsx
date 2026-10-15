@@ -4,15 +4,21 @@ import SudokuCell from "./SudokuCell";
 import NumberRow from "./number-row";
 import Toolbar from "./tool-bar";
 import InfoBar from "./info-bar";
+import DigitWriteOverlay from "./DigitWriteOverlay";
 import { useMenuStore } from "@/store/menu";
+import { useThemeColors } from "@/utils/useThemeColors";
 
 const GRID_SIZE = 9;
 const BOX_SIZE = 3;
 const MAX_PER_NUMBER = 9;
+const WRITE_OVERLAY_SCALE = 2.75;
+const GRID_BORDER = 2;
 
 const Grid = () => {
     /* -------------------- STORE -------------------- */
-    const { board, fixed, solution, notes, moves, handleInput, isPaused } = useMenuStore();
+    const { board, fixed, solution, notes, moves, handleInput, isPaused, isPencilMode } =
+        useMenuStore();
+    const colors = useThemeColors();
 
     /* -------------------- DIMENSIONS -------------------- */
     const { width: screenWidth } = useWindowDimensions();
@@ -20,6 +26,7 @@ const Grid = () => {
     const gridSize = Math.min(screenWidth - 32, 380);
     const cellSize = Math.floor(gridSize / GRID_SIZE);
     const actualGridSize = cellSize * GRID_SIZE;
+    const overlaySize = Math.max(112, Math.round(cellSize * WRITE_OVERLAY_SCALE));
 
     /* -------------------- STATE -------------------- */
     const [selected, setSelected] = useState<{ row: number; col: number } | null>(null);
@@ -128,81 +135,135 @@ const Grid = () => {
         [board, solution, fixed]
     );
 
+    const canWriteSelected =
+        !!selected &&
+        !isPaused &&
+        !isPencilMode &&
+        !isFixedCell(selected.row, selected.col) &&
+        !isLockedCell(selected.row, selected.col);
+
+    const writeOverlayPosition = useMemo(() => {
+        if (!selected) return null;
+        const gridBox = actualGridSize + GRID_BORDER * 2;
+        const cellCenterX = GRID_BORDER + selected.col * cellSize + cellSize / 2;
+        const cellCenterY = GRID_BORDER + selected.row * cellSize + cellSize / 2;
+        const left = Math.max(
+            -overlaySize * 0.2,
+            Math.min(cellCenterX - overlaySize / 2, gridBox - overlaySize * 0.8)
+        );
+        const top = Math.max(
+            -overlaySize * 0.2,
+            Math.min(cellCenterY - overlaySize / 2, gridBox - overlaySize * 0.8)
+        );
+        return { left, top };
+    }, [selected, actualGridSize, cellSize, overlaySize]);
+
+    const handleHandwriting = useCallback(
+        (digit: number) => {
+            if (!selected) return;
+            handleInput(selected.row, selected.col, digit);
+        },
+        [selected, handleInput]
+    );
+
     /* -------------------- RENDER -------------------- */
     return (
         <View className="w-full items-center justify-center py-3">
             <InfoBar />
 
-            {/* Outer grid wrapper */}
-            <View
-                className="border-2 border-primary bg-surface rounded-xl overflow-hidden mt-2"
-                style={{
-                    width: actualGridSize + 4,
-                    height: actualGridSize + 4,
-                    shadowOffset: { width: 0, height: 4 },
-                    shadowOpacity: 0.18,
-                    shadowRadius: 10,
-                    elevation: 6,
-                }}
-            >
-                <View className="flex-col" style={{ width: actualGridSize, height: actualGridSize }}>
-                    {/* 3×3 boxes */}
-                    {[0, 1, 2].map((boxRow) => (
-                        <View key={boxRow} className="flex-row">
-                            {[0, 1, 2].map((boxCol) => (
-                                <View
-                                    key={boxCol}
-                                    className={[
-                                        "flex-col overflow-hidden",
-                                        boxCol < 2 ? "border-r-2 border-primary" : "",
-                                        boxRow < 2 ? "border-b-2 border-primary" : "",
-                                    ].join(" ")}
-                                    style={{ width: cellSize * 3, height: cellSize * 3 }}
-                                >
-                                    {[0, 1, 2].map((cellRow) => {
-                                        const r = boxRow * BOX_SIZE + cellRow;
-                                        return (
-                                            <View key={cellRow} className="flex-row">
-                                                {[0, 1, 2].map((cellCol) => {
-                                                    const c = boxCol * BOX_SIZE + cellCol;
-                                                    return (
-                                                        <View
-                                                            key={cellCol}
-                                                            className={[
-                                                                cellCol < 2 ? "border-r border-border" : "",
-                                                                cellRow < 2 ? "border-b border-border" : "",
-                                                            ].join(" ")}
-                                                            style={{ width: cellSize, height: cellSize }}
-                                                        >
-                                                            <SudokuCell
-                                                                value={board?.[r][c] ?? null}
-                                                                isSelected={
-                                                                    selected?.row === r && selected?.col === c
-                                                                }
-                                                                isRelated={
-                                                                    selected?.row === r ||
-                                                                    selected?.col === c ||
-                                                                    isSameBox(r, c)
-                                                                }
-                                                                isSameNumber={isSameNumber(r, c)}
-                                                                isFixed={isFixedCell(r, c)}
-                                                                isLocked={isLockedCell(r, c)}
-                                                                isError={isError(r, c)}
-                                                                notes={notes?.[r][c] || new Set()}
-                                                                onPress={() => handleCellSelect(r, c)}
-                                                                cellSize={cellSize}
-                                                            />
-                                                        </View>
-                                                    );
-                                                })}
-                                            </View>
-                                        );
-                                    })}
-                                </View>
-                            ))}
-                        </View>
-                    ))}
+            <View className="mt-2" style={{ position: "relative" }}>
+                {/* Outer grid wrapper */}
+                <View
+                    className="border-2 border-primary bg-surface rounded-xl overflow-hidden"
+                    style={{
+                        width: actualGridSize + 4,
+                        height: actualGridSize + 4,
+                        shadowOffset: { width: 0, height: 4 },
+                        shadowOpacity: 0.18,
+                        shadowRadius: 10,
+                        elevation: 6,
+                    }}
+                >
+                    <View className="flex-col" style={{ width: actualGridSize, height: actualGridSize }}>
+                        {/* 3×3 boxes */}
+                        {[0, 1, 2].map((boxRow) => (
+                            <View key={boxRow} className="flex-row">
+                                {[0, 1, 2].map((boxCol) => (
+                                    <View
+                                        key={boxCol}
+                                        className={[
+                                            "flex-col overflow-hidden",
+                                            boxCol < 2 ? "border-r-2 border-primary" : "",
+                                            boxRow < 2 ? "border-b-2 border-primary" : "",
+                                        ].join(" ")}
+                                        style={{ width: cellSize * 3, height: cellSize * 3 }}
+                                    >
+                                        {[0, 1, 2].map((cellRow) => {
+                                            const r = boxRow * BOX_SIZE + cellRow;
+                                            return (
+                                                <View key={cellRow} className="flex-row">
+                                                    {[0, 1, 2].map((cellCol) => {
+                                                        const c = boxCol * BOX_SIZE + cellCol;
+                                                        return (
+                                                            <View
+                                                                key={cellCol}
+                                                                className={[
+                                                                    cellCol < 2 ? "border-r border-border" : "",
+                                                                    cellRow < 2 ? "border-b border-border" : "",
+                                                                ].join(" ")}
+                                                                style={{ width: cellSize, height: cellSize }}
+                                                            >
+                                                                <SudokuCell
+                                                                    value={board?.[r][c] ?? null}
+                                                                    isSelected={
+                                                                        selected?.row === r && selected?.col === c
+                                                                    }
+                                                                    isRelated={
+                                                                        selected?.row === r ||
+                                                                        selected?.col === c ||
+                                                                        isSameBox(r, c)
+                                                                    }
+                                                                    isSameNumber={isSameNumber(r, c)}
+                                                                    isFixed={isFixedCell(r, c)}
+                                                                    isLocked={isLockedCell(r, c)}
+                                                                    isError={isError(r, c)}
+                                                                    notes={notes?.[r][c] || new Set()}
+                                                                    onPress={() => handleCellSelect(r, c)}
+                                                                    cellSize={cellSize}
+                                                                />
+                                                            </View>
+                                                        );
+                                                    })}
+                                                </View>
+                                            );
+                                        })}
+                                    </View>
+                                ))}
+                            </View>
+                        ))}
+                    </View>
                 </View>
+
+                {canWriteSelected && writeOverlayPosition ? (
+                    <View
+                        pointerEvents="box-none"
+                        style={{
+                            position: "absolute",
+                            left: writeOverlayPosition.left,
+                            top: writeOverlayPosition.top,
+                            zIndex: 30,
+                            elevation: 30,
+                        }}
+                    >
+                        <DigitWriteOverlay
+                            key={`${selected!.row}-${selected!.col}`}
+                            size={overlaySize}
+                            strokeColor={colors.foreground}
+                            onRecognized={handleHandwriting}
+                            onDismiss={() => setSelected(null)}
+                        />
+                    </View>
+                ) : null}
             </View>
 
             <Toolbar onErase={handleErase} selected={selected} />
