@@ -53,3 +53,5 @@ yarn-error.*
 
 # local build outputs
 artifacts/
+
+package-lock.json
