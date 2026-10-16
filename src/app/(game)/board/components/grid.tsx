@@ -7,6 +7,8 @@ import InfoBar from "./info-bar";
 import DigitWriteOverlay from "./DigitWriteOverlay";
 import { useMenuStore } from "@/store/menu";
 import { useThemeColors } from "@/utils/useThemeColors";
+import { isApplePencilEvent, supportsApplePencilUi } from "@/utils/isApplePencilEvent";
+import type { GestureResponderEvent } from "react-native";
 
 const GRID_SIZE = 9;
 const BOX_SIZE = 3;
@@ -30,6 +32,8 @@ const Grid = () => {
 
     /* -------------------- STATE -------------------- */
     const [selected, setSelected] = useState<{ row: number; col: number } | null>(null);
+    /** Write pad only after a cell was selected with Apple Pencil (not finger). */
+    const [pencilSelected, setPencilSelected] = useState(false);
 
     const isFixedCell = useCallback(
         (row: number, col: number) => fixed?.[row]?.[col] !== null,
@@ -54,8 +58,10 @@ const Grid = () => {
 
     /* -------------------- HANDLERS -------------------- */
     const handleCellSelect = useCallback(
-        (row: number, col: number) => {
-            if (!isPaused) setSelected({ row, col });
+        (row: number, col: number, event?: GestureResponderEvent) => {
+            if (isPaused) return;
+            setSelected({ row, col });
+            setPencilSelected(supportsApplePencilUi() && isApplePencilEvent(event));
         },
         [isPaused]
     );
@@ -136,6 +142,7 @@ const Grid = () => {
     );
 
     const canWriteSelected =
+        pencilSelected &&
         !!selected &&
         !isPaused &&
         !isPencilMode &&
@@ -163,6 +170,7 @@ const Grid = () => {
             if (!selected) return;
             handleInput(selected.row, selected.col, digit);
             setSelected(null);
+            setPencilSelected(false);
         },
         [selected, handleInput]
     );
@@ -229,7 +237,7 @@ const Grid = () => {
                                                                     isLocked={isLockedCell(r, c)}
                                                                     isError={isError(r, c)}
                                                                     notes={notes?.[r][c] || new Set()}
-                                                                    onPress={() => handleCellSelect(r, c)}
+                                                                    onPress={(event) => handleCellSelect(r, c, event)}
                                                                     cellSize={cellSize}
                                                                 />
                                                             </View>
@@ -261,7 +269,10 @@ const Grid = () => {
                             size={overlaySize}
                             strokeColor={colors.foreground}
                             onRecognized={handleHandwriting}
-                            onDismiss={() => setSelected(null)}
+                            onDismiss={() => {
+                                setSelected(null);
+                                setPencilSelected(false);
+                            }}
                         />
                     </View>
                 ) : null}

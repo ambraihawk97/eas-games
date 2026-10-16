@@ -1,4 +1,4 @@
-import { Pressable, Animated, View, StyleSheet } from "react-native";
+import { Pressable, Animated, View, StyleSheet, type GestureResponderEvent } from "react-native";
 import { useRef, useEffect } from "react";
 import { Text } from "@/components/ui/text";
 import { cn } from "@/utils/cn";
@@ -12,7 +12,7 @@ type Props = {
     isLocked: boolean;
     isError: boolean;
     notes: Set<number>;
-    onPress: () => void;
+    onPress: (event: GestureResponderEvent) => void;
     cellSize: number;
 };
 
