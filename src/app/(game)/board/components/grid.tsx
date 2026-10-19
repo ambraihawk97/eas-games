@@ -114,14 +114,6 @@ const Grid = () => {
     }, [selected, isPaused, handleInput]);
 
     /* -------------------- HELPERS -------------------- */
-    const isSameBox = (r: number, c: number) => {
-        if (!selected) return false;
-        return (
-            Math.floor(r / BOX_SIZE) === Math.floor(selected.row / BOX_SIZE) &&
-            Math.floor(c / BOX_SIZE) === Math.floor(selected.col / BOX_SIZE)
-        );
-    };
-
     const isSameNumber = (_r: number, _c: number) => false;
 
     const isError = (r: number, c: number) => {
@@ -227,11 +219,7 @@ const Grid = () => {
                                                                     isSelected={
                                                                         selected?.row === r && selected?.col === c
                                                                     }
-                                                                    isRelated={
-                                                                        selected?.row === r ||
-                                                                        selected?.col === c ||
-                                                                        isSameBox(r, c)
-                                                                    }
+                                                                    isRelated={false}
                                                                     isSameNumber={isSameNumber(r, c)}
                                                                     isFixed={isFixedCell(r, c)}
                                                                     isLocked={isLockedCell(r, c)}
