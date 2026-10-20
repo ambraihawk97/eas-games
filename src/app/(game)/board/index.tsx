@@ -23,8 +23,8 @@ export default function IndexScreen() {
             restoreActiveGame().then((restored) => {
                 setIsRestoring(false);
                 if (!restored) {
-                    // No game to restore, go back to home
-                    router.replace("/");
+                    // No game to restore, go back to Solve9 menu
+                    router.replace("/solve9");
                 }
             });
         }
