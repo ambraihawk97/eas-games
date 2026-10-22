@@ -7,15 +7,18 @@
 #      (skipped with --skip-local-build). If the repo is on a network
 #      filesystem (this tree lives on CIFS), sources are mirrored to
 #      ~/.cache/eas-games-ipa-build/worktree first. pnpm postinstall
-#      scripts fail on network mounts.
+#      scripts fail on network mounts. On non-x86 hosts the React Native
+#      hermesc binary cannot execute, so the export runs with
+#      --no-bytecode; CI still builds Hermes bytecode for the real app.
 #   2. Commit local changes and push to origin/<branch>, which triggers
 #      the "Build Expo IPA" workflow.
 #   3. Poll the GitHub Actions run for the pushed commit until it completes.
 #   4. Download the Solve9.ipa artifact and place the inner .ipa in --out-dir.
 #
-# Sideloadly is a Windows app, so this script does not launch it. The .ipa
-# path is printed when the download finishes. Pass --no-deploy to skip that
-# note.
+# Sideloadly is a Windows/macOS app, so this script does not launch it. The
+# .ipa path is printed when the download finishes; open it from a Windows PC
+# (the repo lives on the NAS share, so no copy is needed). Pass --no-deploy
+# to skip that note.
 #
 # Authentication: GH_TOKEN or GITHUB_TOKEN, then "gh auth token", then the
 # stored git credential for github.com.
@@ -173,7 +176,7 @@ sync_local_build_tree() {
 
 pick_node() {
     local nvm_dir=${NVM_DIR:-$HOME/.nvm}
-    local best_bin="" line ver bin
+    local best_bin="" ver
     if [[ -d "$nvm_dir/versions/node" ]]; then
         best_bin=$(
             for dir in "$nvm_dir"/versions/node/v*; do
@@ -289,7 +292,15 @@ if [[ "$skip_local_build" -eq 0 ]]; then
     (
         cd "$build_root"
         pnpm install --node-linker=hoisted
-        CI=1 npx expo export --platform ios
+
+        export_args=(--platform ios)
+        hermesc="node_modules/react-native/sdks/hermesc/linux64-bin/hermesc"
+        if [[ -f "$hermesc" ]] && ! "$hermesc" -version >/dev/null 2>&1; then
+            echo "Hermes compiler cannot run on $(uname -m); exporting without bytecode."
+            echo "This only affects local validation - CI builds Hermes bytecode for iOS."
+            export_args+=(--no-bytecode)
+        fi
+        CI=1 npx expo export "${export_args[@]}"
     )
 fi
 
@@ -395,8 +406,9 @@ printf '%sSUCCESS: %s (%s MB)%s\n' "$green" "$final_path" "$size_mb" "$reset"
 
 if [[ "$no_deploy" -eq 0 ]]; then
     step "IPA ready"
-    printf '%sSideloadly is a Windows app and cannot run on this machine.%s\n' "$yellow" "$reset"
-    printf '%sCopy this file to a Windows PC and open it in Sideloadly:%s\n' "$yellow" "$reset"
+    printf '%sSideloadly runs on Windows/macOS only, so it cannot be launched from this Pi.%s\n' "$yellow" "$reset"
+    printf '%sOpen this file from a Windows PC and drag it into Sideloadly:%s\n' "$yellow" "$reset"
     printf '%s  %s%s\n' "$yellow" "$final_path" "$reset"
+    printf '%sIt is already on the NAS share, so no copy is required.%s\n' "$yellow" "$reset"
     printf '%sPass --no-deploy to skip this note.%s\n' "$yellow" "$reset"
 fi
